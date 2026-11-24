@@ -4,8 +4,8 @@ import base64
 import time
 import requests
 
-REVAL_BASE = "https://reval.net"
-BLING_BASE = "https://bling.com.br"
+REVAL_BASE = "https://" + "api.reval.net/api"
+BLING_BASE = "https://" + "api.bling.com.br/Api/v3"
 
 REVAL_USER = os.environ["REVAL_USER"]
 REVAL_PASS = os.environ["REVAL_PASS"]
