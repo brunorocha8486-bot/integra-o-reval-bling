@@ -1,0 +1,41 @@
+name: Sincronizar Reval com Bling
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar bibliotecas
+        run: pip install requests
+
+      - name: Executar sincronizacao Reval -> Bling
+        env:
+          REVAL_USER: ${{ secrets.REVAL_USER }}
+          REVAL_PASS: ${{ secrets.REVAL_PASS }}
+          BLING_CLIENT_ID: ${{ secrets.BLING_CLIENT_ID }}
+          BLING_CLIENT_SECRET: ${{ secrets.BLING_CLIENT_SECRET }}
+          BLING_AUTH_CODE: ${{ secrets.BLING_AUTH_CODE }}
+        run: python sincronizar.py
+
+      - name: Salvar token atualizado do Bling
+        run: |
+          git config --global user.name "Robo Reval"
+          git config --global user.email "robo@reval.local"
+          git add bling_tokens.json || true
+          git commit -m "Atualiza token Bling" || true
+          git push || true
