@@ -7,14 +7,27 @@ import requests
 REVAL_BASE = "https://" + "api.reval.net/api"
 BLING_BASE = "https://" + "api.bling.com.br/Api/v3"
 
-REVAL_USER = os.environ["REVAL_USER"]
-REVAL_PASS = os.environ["REVAL_PASS"]
-BLING_CLIENT_ID = os.environ["BLING_CLIENT_ID"]
-BLING_CLIENT_SECRET = os.environ["BLING_CLIENT_SECRET"]
+REVAL_USER = os.environ.get("REVAL_USER")
+REVAL_PASS = os.environ.get("REVAL_PASS")
+BLING_CLIENT_ID = os.environ.get("BLING_CLIENT_ID")
+BLING_CLIENT_SECRET = os.environ.get("BLING_CLIENT_SECRET")
 BLING_AUTH_CODE = os.environ.get("BLING_AUTH_CODE", "")
 
 TOKEN_FILE = "bling_tokens.json"
-SALDO_SEGURANCA = 5
+SALDO_DISPONIVEL = 5
+MARGEM_VENDA = 1.65
+
+
+def parse_preco(valor):
+    if valor is None:
+        return 0.0
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    txt = str(valor).replace("R$", "").replace(".", "").replace(",", ".").strip()
+    try:
+        return float(txt)
+    except Exception:
+        return 0.0
 
 
 def get_bling_token():
@@ -31,19 +44,14 @@ def get_bling_token():
             tokens = json.load(f)
         data = {
             "grant_type": "refresh_token",
-            "refresh_token": tokens["refresh_token"]
+            "refresh_token": tokens.get("refresh_token")
         }
         r = requests.post(f"{BLING_BASE}/oauth/token", headers=headers, data=data)
         if r.status_code == 200:
             new_tokens = r.json()
             with open(TOKEN_FILE, "w") as f:
                 json.dump(new_tokens, f)
-            return new_tokens["access_token"]
-        else:
-            print("Erro ao renovar token:", r.text)
-
-    if not BLING_AUTH_CODE:
-        raise Exception("BLING_AUTH_CODE ausente e nenhum refresh_token salvo!")
+            return new_tokens.get("access_token")
 
     data = {
         "grant_type": "authorization_code",
@@ -56,7 +64,7 @@ def get_bling_token():
     new_tokens = r.json()
     with open(TOKEN_FILE, "w") as f:
         json.dump(new_tokens, f)
-    return new_tokens["access_token"]
+    return new_tokens.get("access_token")
 
 
 def get_reval_token():
@@ -73,7 +81,7 @@ def get_reval_token():
 
 
 def get_reval_products(reval_token):
-    headers = {"Authorization": f"Bearer {reval_token}"}
+    headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
     pagina = 1
     tamanho = 100
@@ -88,25 +96,45 @@ def get_reval_products(reval_token):
             }
         )
         if r.status_code != 200:
-            print(f"Aviso na pagina {pagina} da Reval:", r.status_code, r.text[:250])
+            print("Aviso pagina Reval:", pagina, r.status_code)
             break
         resp = r.json()
-        if isinstance(resp, list):
-            lista = resp
-        elif isinstance(resp, dict):
-            lista = resp.get("data") or resp.get("produtos") or resp.get("itens") or resp.get("items") or []
-        else:
-            lista = []
-
+        lista = resp.get("models") if isinstance(resp, dict) else resp
         if not lista:
             break
         produtos.extend(lista)
         if len(lista) < tamanho:
             break
         pagina += 1
-        if pagina > 15:
+        if pagina > 10:
             break
     return produtos
+
+
+def get_reval_imagens(reval_token, codigo):
+    headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
+    try:
+        r = requests.get(
+            f"{REVAL_BASE}/imagem/get-all-imagem",
+            headers=headers,
+            params={"produto": codigo},
+            timeout=10
+        )
+        if r.status_code == 200:
+            dados = r.json()
+            lista = dados if isinstance(dados, list) else (dados.get("models") or dados.get("data") or [])
+            urls = []
+            for img in lista:
+                if isinstance(img, str) and img.startswith("http"):
+                    urls.append({"link": img})
+                elif isinstance(img, dict):
+                    link = img.get("url") or img.get("link") or img.get("caminho") or img.get("imagem")
+                    if link and str(link).startswith("http"):
+                        urls.append({"link": link})
+            return urls
+    except Exception:
+        pass
+    return []
 
 
 def get_bling_deposito_id(bling_headers):
@@ -115,9 +143,9 @@ def get_bling_deposito_id(bling_headers):
         depositos = r.json().get("data", [])
         for d in depositos:
             if d.get("padrao"):
-                return d["id"]
+                return d.get("id")
         if depositos:
-            return depositos[0]["id"]
+            return next(iter(depositos)).get("id")
     return None
 
 
@@ -138,51 +166,23 @@ def sincronizar():
 
     print("3. Buscando catalogo e estoque da Reval...")
     produtos_reval = get_reval_products(reval_token)
-    print(f"Total de produtos encontrados na Reval: {len(produtos_reval)}")
-
-    if produtos_reval:
-        print("Exemplo de campos do primeiro item:", list(produtos_reval[0].keys()))
+    print("Total de produtos lidos da Reval:", len(produtos_reval))
 
     atualizados = 0
     criados = 0
 
-    for item in produtos_reval[:1000]:
-        sku = str(
-            item.get("codigo")
-            or item.get("codigoProduto")
-            or item.get("codProduto")
-            or item.get("sku")
-            or item.get("id")
-            or ""
-        ).strip()
+    for item in produtos_reval:
+        sku = str(item.get("codigo") or "").strip()
         if not sku:
             continue
 
-        nome = str(
-            item.get("descricao")
-            or item.get("descricaoProduto")
-            or item.get("nome")
-            or f"Produto {sku}"
-        )[:120]
+        disponivel = str(item.get("estoque") or "N").strip().upper() == "S"
+        estoque_seguro = SALDO_DISPONIVEL if disponivel else 0
 
-        preco_custo = float(
-            item.get("preco")
-            or item.get("precoTabela")
-            or item.get("valor")
-            or item.get("precoUnitario")
-            or 0
-        )
-
-        estoque_real = int(float(
-            item.get("estoque")
-            or item.get("saldo")
-            or item.get("quantidade")
-            or item.get("qtdEstoque")
-            or 0
-        ))
-
-        estoque_seguro = estoque_real if estoque_real >= SALDO_SEGURANCA else 0
-        preco_venda = round(preco_custo * 1.65, 2) if preco_custo > 0 else 0
+        nome = str(item.get("descricao") or item.get("nome") or f"Produto {sku}").strip()[:120]
+        desc_curta = str(item.get("dadosAdicionais") or nome).strip()
+        preco_custo = parse_preco(item.get("preco"))
+        preco_venda = round(preco_custo * MARGEM_VENDA, 2) if preco_custo > 0 else 0
 
         r_busca = requests.get(
             f"{BLING_BASE}/produtos",
@@ -191,22 +191,25 @@ def sincronizar():
         )
         time.sleep(0.35)
 
-        if r_busca.status_code == 200 and r_busca.json().get("data"):
-            prod_id = r_busca.json()["data"][0]["id"]
-            if deposito_id:
+        lista_bling = r_busca.json().get("data") if r_busca.status_code == 200 else []
+        if lista_bling:
+            prod_id = next(iter(lista_bling)).get("id")
+            if prod_id and deposito_id:
                 payload_est = {
                     "produto": {"id": prod_id},
                     "deposito": {"id": deposito_id},
                     "operacao": "B",
                     "quantidade": estoque_seguro,
-                    "observacoes": f"Reval real: {estoque_real} | Seguro: {estoque_seguro}"
+                    "observacoes": f"Reval status: {item.get('estoque')}"
                 }
                 requests.post(f"{BLING_BASE}/estoques", headers=bling_headers, json=payload_est)
                 time.sleep(0.35)
                 atualizados += 1
         else:
-            if estoque_seguro == 0:
+            if not disponivel or preco_venda <= 0:
                 continue
+
+            imagens = get_reval_imagens(reval_token, sku)
             payload_novo = {
                 "nome": nome,
                 "codigo": sku,
@@ -214,10 +217,24 @@ def sincronizar():
                 "tipo": "P",
                 "situacao": "A",
                 "formato": "S",
-                "unidade": "UN"
+                "unidade": "UN",
+                "descricaoCurta": desc_curta,
+                "gtin": str(item.get("codigoBarras") or "").strip(),
+                "marca": str(item.get("marca") or "").strip(),
+                "pesoLiquido": parse_preco(item.get("peso")),
+                "pesoBruto": parse_preco(item.get("peso")),
+                "dimensoes": {
+                    "largura": parse_preco(item.get("largura")),
+                    "altura": parse_preco(item.get("altura")),
+                    "profundidade": parse_preco(item.get("comprimento")),
+                    "unidadeMedida": 1
+                }
             }
+            if imagens:
+                payload_novo["midia"] = {"imagens": {"externas": imagens}}
+
             r_cria = requests.post(f"{BLING_BASE}/produtos", headers=bling_headers, json=payload_novo)
-            time.sleep(0.35)
+            time.sleep(0.4)
             if r_cria.status_code in (200, 201):
                 criados += 1
                 prod_id = r_cria.json().get("data", {}).get("id")
@@ -227,12 +244,15 @@ def sincronizar():
                         "deposito": {"id": deposito_id},
                         "operacao": "B",
                         "quantidade": estoque_seguro,
-                        "observacoes": f"Estoque inicial Reval ({estoque_real})"
+                        "observacoes": "Estoque inicial Reval"
                     }
                     requests.post(f"{BLING_BASE}/estoques", headers=bling_headers, json=payload_est)
                     time.sleep(0.35)
 
-    print(f"Concluido! Produtos novos: {criados} | Estoques atualizados: {atualizados}")
+            if criados >= 100:
+                break
+
+    print(f"Concluido! Produtos novos criados: {criados} | Estoques atualizados: {atualizados}")
 
 
 if __name__ == "__main__":
