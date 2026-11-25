@@ -5,7 +5,7 @@ import time
 import requests
 
 REVAL_BASE = "https://" + "api.reval.net/api"
-BLING_BASE = "https://" + "://bling.com.br/Api/v3"
+BLING_BASE = "https://" + "api.bling.com.br/Api/v3"
 
 REVAL_USER = os.environ["REVAL_USER"]
 REVAL_PASS = os.environ["REVAL_PASS"]
