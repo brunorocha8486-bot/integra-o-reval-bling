@@ -6,7 +6,7 @@ import requests
 
 REVAL_BASE = "https://" + "api.reval.net/api"
 BLING_BASE = "https://" + "api.bling.com.br/Api/v3"
-RAW_GITHUB_BASE = "https://" + "brunorocha8486-bot/integra-o-reval-bling/fotos"
+IMG_HOST_URL = "https://" + "catbox.moe/user/api.php"
 
 REVAL_USER = os.environ.get("REVAL_USER")
 REVAL_PASS = os.environ.get("REVAL_PASS")
@@ -15,7 +15,6 @@ BLING_CLIENT_SECRET = os.environ.get("BLING_CLIENT_SECRET")
 BLING_AUTH_CODE = os.environ.get("BLING_AUTH_CODE", "")
 
 TOKEN_FILE = "bling_tokens.json"
-FOTOS_DIR = "fotos"
 SALDO_DISPONIVEL = 5
 MARGEM_VENDA = 1.65
 
@@ -85,7 +84,7 @@ def get_reval_token():
 def get_reval_products(reval_token):
     headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
-    for pagina in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
+    for pagina in range(1, 21):
         r = requests.get(
             f"{REVAL_BASE}/produto/get-page-tabela",
             headers=headers,
@@ -101,8 +100,7 @@ def get_reval_products(reval_token):
     return produtos
 
 
-def baixar_fotos_reval(reval_token, sku):
-    os.makedirs(FOTOS_DIR, exist_ok=True)
+def gerar_links_fotos_reval(reval_token, sku):
     headers_rev = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     externas = []
     try:
@@ -121,13 +119,18 @@ def baixar_fotos_reval(reval_token, sku):
                 b64_data = img.get("arquivo")
                 if not b64_data:
                     continue
-                nome_arq = f"{sku}_{idx+1}.jpg"
-                caminho_local = os.path.join(FOTOS_DIR, nome_arq)
-                with open(caminho_local, "wb") as f:
-                    f.write(base64.b64decode(b64_data))
-                externas.append({"link": f"{RAW_GITHUB_BASE}/{nome_arq}"})
+                img_bytes = base64.b64decode(b64_data)
+                r_up = requests.post(
+                    IMG_HOST_URL,
+                    data={"reqtype": "fileupload"},
+                    files={"fileToUpload": (f"{sku}_{idx+1}.jpg", img_bytes, "image/jpeg")},
+                    timeout=15
+                )
+                link_publico = r_up.text.strip()
+                if r_up.status_code == 200 and link_publico.startswith("http"):
+                    externas.append({"link": link_publico})
     except Exception as e:
-        print("Erro foto:", sku, str(e)[:100], flush=True)
+        print("Erro upload foto:", sku, str(e)[:100], flush=True)
     return externas
 
 
@@ -201,22 +204,11 @@ def sincronizar():
                 requests.post(f"{BLING_BASE}/estoques", headers=bling_headers, json=payload_est)
                 time.sleep(0.35)
                 atualizados += 1
-
-            if prod_id and disponivel:
-                externas = baixar_fotos_reval(reval_token, sku)
-                if externas and not prod_existente.get("imagemURL"):
-                    requests.patch(
-                        f"{BLING_BASE}/produtos/{prod_id}",
-                        headers=bling_headers,
-                        json={"midia": {"imagens": {"externas": externas}}}
-                    )
-                    time.sleep(0.35)
-                    print(f"Foto vinculada no item existente: {sku}", flush=True)
         else:
             if not disponivel:
                 continue
 
-            externas = baixar_fotos_reval(reval_token, sku)
+            externas = gerar_links_fotos_reval(reval_token, sku)
             payload_novo = {
                 "nome": nome,
                 "codigo": sku,
