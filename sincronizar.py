@@ -6,7 +6,7 @@ import requests
 
 REVAL_BASE = "https://" + "api.reval.net/api"
 BLING_BASE = "https://" + "api.bling.com.br/Api/v3"
-RAW_GITHUB_BASE = "https://" + "raw.githubusercontent.com/brunorocha8486-bot/integra-o-reval-bling/main/fotos"
+RAW_GITHUB_BASE = "https://" + "brunorocha8486-bot/integra-o-reval-bling/fotos"
 
 REVAL_USER = os.environ.get("REVAL_USER")
 REVAL_PASS = os.environ.get("REVAL_PASS")
