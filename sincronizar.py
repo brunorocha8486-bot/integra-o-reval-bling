@@ -6,6 +6,7 @@ import requests
 
 REVAL_BASE = "https://" + "api.reval.net/api"
 BLING_BASE = "https://" + "api.bling.com.br/Api/v3"
+RAW_GITHUB_BASE = "https://" + "raw.githubusercontent.com/brunorocha8486-bot/integra-o-reval-bling/main/fotos"
 
 REVAL_USER = os.environ.get("REVAL_USER")
 REVAL_PASS = os.environ.get("REVAL_PASS")
@@ -14,6 +15,7 @@ BLING_CLIENT_SECRET = os.environ.get("BLING_CLIENT_SECRET")
 BLING_AUTH_CODE = os.environ.get("BLING_AUTH_CODE", "")
 
 TOKEN_FILE = "bling_tokens.json"
+FOTOS_DIR = "fotos"
 SALDO_DISPONIVEL = 5
 MARGEM_VENDA = 1.65
 
@@ -99,9 +101,10 @@ def get_reval_products(reval_token):
     return produtos
 
 
-def anexar_fotos_bling(reval_token, bling_token, sku):
+def baixar_fotos_reval(reval_token, sku):
+    os.makedirs(FOTOS_DIR, exist_ok=True)
     headers_rev = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
-    internas = []
+    externas = []
     try:
         r = requests.get(
             f"{REVAL_BASE}/imagem/get-all-imagem",
@@ -112,29 +115,20 @@ def anexar_fotos_bling(reval_token, bling_token, sku):
         if r.status_code == 200:
             dados = r.json()
             lista = dados if isinstance(dados, list) else (dados.get("models") or dados.get("data") or [])
-            for img in lista[:6]:
+            for idx, img in enumerate(lista[:6]):
                 if not isinstance(img, dict):
                     continue
                 b64_data = img.get("arquivo")
-                nome_arq = img.get("nome") or f"{sku}.jpg"
                 if not b64_data:
                     continue
-                img_bytes = base64.b64decode(b64_data)
-                r_up = requests.post(
-                    f"{BLING_BASE}/midias",
-                    headers={"Authorization": f"Bearer {bling_token}", "Accept": "application/json"},
-                    files={"file": (nome_arq, img_bytes, "image/jpeg")}
-                )
-                time.sleep(0.35)
-                if r_up.status_code in (200, 201):
-                    midia_id = r_up.json().get("data", {}).get("id")
-                    if midia_id:
-                        internas.append({"id": midia_id})
-                else:
-                    print("Aviso upload foto:", sku, r_up.status_code, r_up.text[:150], flush=True)
+                nome_arq = f"{sku}_{idx+1}.jpg"
+                caminho_local = os.path.join(FOTOS_DIR, nome_arq)
+                with open(caminho_local, "wb") as f:
+                    f.write(base64.b64decode(b64_data))
+                externas.append({"link": f"{RAW_GITHUB_BASE}/{nome_arq}"})
     except Exception as e:
         print("Erro foto:", sku, str(e)[:100], flush=True)
-    return internas
+    return externas
 
 
 def get_bling_deposito_id(bling_headers):
@@ -208,21 +202,21 @@ def sincronizar():
                 time.sleep(0.35)
                 atualizados += 1
 
-            if prod_id and not prod_existente.get("imagemURL") and disponivel:
-                internas = anexar_fotos_bling(reval_token, bling_token, sku)
-                if internas:
+            if prod_id and disponivel:
+                externas = baixar_fotos_reval(reval_token, sku)
+                if externas and not prod_existente.get("imagemURL"):
                     requests.patch(
                         f"{BLING_BASE}/produtos/{prod_id}",
                         headers=bling_headers,
-                        json={"midia": {"imagens": {"internas": internas}}}
+                        json={"midia": {"imagens": {"externas": externas}}}
                     )
                     time.sleep(0.35)
-                    print(f"Foto anexada no item existente: {sku}", flush=True)
+                    print(f"Foto vinculada no item existente: {sku}", flush=True)
         else:
             if not disponivel:
                 continue
 
-            internas = anexar_fotos_bling(reval_token, bling_token, sku)
+            externas = baixar_fotos_reval(reval_token, sku)
             payload_novo = {
                 "nome": nome,
                 "codigo": sku,
@@ -243,8 +237,8 @@ def sincronizar():
                     "unidadeMedida": 1
                 }
             }
-            if internas:
-                payload_novo["midia"] = {"imagens": {"internas": internas}}
+            if externas:
+                payload_novo["midia"] = {"imagens": {"externas": externas}}
 
             r_cria = requests.post(f"{BLING_BASE}/produtos", headers=bling_headers, json=payload_novo)
             time.sleep(0.4)
@@ -268,6 +262,6 @@ def sincronizar():
             if criados >= 30:
                 break
 
+
 if __name__ == "__main__":
     sincronizar()
-
