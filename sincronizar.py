@@ -83,7 +83,7 @@ def get_reval_token():
 def get_reval_products(reval_token):
     headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
-    for pagina in (1, 2, 3):
+    for pagina in (1, 2, 3, 4, 5):
         r = requests.get(
             f"{REVAL_BASE}/produto/get-page-tabela",
             headers=headers,
@@ -156,6 +156,9 @@ def sincronizar():
     produtos_reval = get_reval_products(reval_token)
     print("Total de produtos lidos da Reval:", len(produtos_reval), flush=True)
 
+    for idx, amostra in enumerate(produtos_reval[:3]):
+        print(f"Amostra {idx+1}: cod={amostra.get('codigo')} | est={amostra.get('estoque')} | preco={amostra.get('preco')}", flush=True)
+
     atualizados = 0
     criados = 0
 
@@ -164,13 +167,17 @@ def sincronizar():
         if not sku:
             continue
 
-        disponivel = str(item.get("estoque") or "N").strip().upper() == "S"
+        est_raw = str(item.get("estoque") or "").strip().upper()
+        disponivel = est_raw in ("S", "SIM", "TRUE", "1", "DISPONIVEL")
         estoque_seguro = SALDO_DISPONIVEL if disponivel else 0
 
         nome = str(item.get("descricao") or item.get("nome") or f"Produto {sku}").strip()[:120]
         desc_curta = str(item.get("dadosAdicionais") or nome).strip()
-        preco_custo = parse_preco(item.get("preco"))
-        preco_venda = round(preco_custo * MARGEM_VENDA, 2) if preco_custo > 0 else 0
+        preco_custo = parse_preco(item.get("preco") or item.get("precoTabela") or item.get("valor"))
+        preco_venda = round(preco_custo * MARGEM_VENDA, 2) if preco_custo > 0 else 10.0
+
+        if not disponivel:
+            continue
 
         r_busca = requests.get(
             f"{BLING_BASE}/produtos",
@@ -188,15 +195,12 @@ def sincronizar():
                     "deposito": {"id": deposito_id},
                     "operacao": "B",
                     "quantidade": estoque_seguro,
-                    "observacoes": f"Reval status: {item.get('estoque')}"
+                    "observacoes": f"Reval status: {est_raw}"
                 }
                 requests.post(f"{BLING_BASE}/estoques", headers=bling_headers, json=payload_est)
                 time.sleep(0.35)
                 atualizados += 1
         else:
-            if not disponivel or preco_venda <= 0:
-                continue
-
             imagens = get_reval_imagens(reval_token, sku)
             payload_novo = {
                 "nome": nome,
@@ -230,7 +234,7 @@ def sincronizar():
             else:
                 print(f"Aviso Bling ao criar {sku}: {r_cria.status_code} {r_cria.text[:250]}", flush=True)
 
-            if criados >= 50:
+            if criados >= 30:
                 break
 
     print(f"Concluido! Novos: {criados} | Atualizados: {atualizados}", flush=True)
