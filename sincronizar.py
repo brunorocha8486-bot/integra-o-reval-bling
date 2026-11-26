@@ -6,7 +6,9 @@ import requests
 
 REVAL_BASE = "https://" + "api.reval.net/api"
 BLING_BASE = "https://" + "api.bling.com.br/Api/v3"
-IMG_HOST_URL = "https://" + "tmpfiles.org/api/v1/upload"
+IMG_HOST_URL = "https://" + "api.imgbb.com/1/upload"
+IMGBB_KEY = "dfe01a854e6364a85a2449f4e897c0e6"
+
 
 REVAL_USER = os.environ.get("REVAL_USER")
 REVAL_PASS = os.environ.get("REVAL_PASS")
@@ -119,17 +121,16 @@ def gerar_links_fotos_reval(reval_token, sku):
                 b64_data = img.get("arquivo")
                 if not b64_data:
                     continue
-                img_bytes = base64.b64decode(b64_data)
-                r_up = requests.post(
+                 r_up = requests.post(
                     IMG_HOST_URL,
-                    files={"file": (f"{sku}_{idx+1}.jpg", img_bytes, "image/jpeg")},
+                    data={"key": IMGBB_KEY, "image": b64_data, "name": f"{sku}_{idx+1}"},
                     timeout=15
                 )
                 if r_up.status_code == 200:
-                    url_raw = r_up.json().get("data", {}).get("url", "")
-                    if url_raw.startswith("http"):
-                        link_direto = url_raw.replace("tmpfiles.org/", "tmpfiles.org/dl/")
+                    link_direto = r_up.json().get("data", {}).get("url", "")
+                    if link_direto.startswith("http"):
                         externas.append({"link": link_direto})
+
 
     except Exception as e:
         print("Erro upload foto:", sku, str(e)[:100], flush=True)
