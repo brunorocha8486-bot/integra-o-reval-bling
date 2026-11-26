@@ -85,20 +85,24 @@ def get_reval_token():
 def get_reval_products(reval_token):
     headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
-    for pagina in range(1, 21):
+    for pagina in range(1, 50):
         r = requests.get(
             f"{REVAL_BASE}/produto/get-page-tabela",
             headers=headers,
-            params={"usuario": REVAL_USER, "pageIndex": pagina, "pageSize": 100}
+            params={"usuario": REVAL_USER, "pageIndex": pagina, "pageSize": 500},
+            timeout=20
         )
-        if r.status_code != 200:
-            break
+        if r.status_code != 200 or not r.text.strip():
+            time.sleep(2)
+            continue
         resp = r.json()
         lista = resp.get("models") if isinstance(resp, dict) else resp
         if not lista:
             break
         produtos.extend(lista)
+        time.sleep(0.4)
     return produtos
+
 
 
 def gerar_links_fotos_reval(reval_token, sku):
