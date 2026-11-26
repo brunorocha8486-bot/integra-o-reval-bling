@@ -121,7 +121,7 @@ def gerar_links_fotos_reval(reval_token, sku):
                 b64_data = img.get("arquivo")
                 if not b64_data:
                     continue
-                  r_up = requests.post(
+                    r_up = requests.post(
                     IMG_HOST_URL,
                     data={"key": IMGBB_KEY, "image": b64_data, "name": f"{sku}_{idx+1}"},
                     timeout=15
