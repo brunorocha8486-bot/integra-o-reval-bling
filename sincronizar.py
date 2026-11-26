@@ -83,31 +83,19 @@ def get_reval_token():
 def get_reval_products(reval_token):
     headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
-    pagina = 1
-    tamanho = 100
-    while True:
+    for pagina in (1, 2, 3):
         r = requests.get(
             f"{REVAL_BASE}/produto/get-page-tabela",
             headers=headers,
-            params={
-                "usuario": REVAL_USER,
-                "pageIndex": pagina,
-                "pageSize": tamanho
-            }
+            params={"usuario": REVAL_USER, "pageIndex": pagina, "pageSize": 100}
         )
         if r.status_code != 200:
-            print("Aviso pagina Reval:", pagina, r.status_code)
             break
         resp = r.json()
         lista = resp.get("models") if isinstance(resp, dict) else resp
         if not lista:
             break
         produtos.extend(lista)
-        if len(lista) < tamanho:
-            break
-        pagina += 1
-        if pagina > 10:
-            break
     return produtos
 
 
@@ -118,7 +106,7 @@ def get_reval_imagens(reval_token, codigo):
             f"{REVAL_BASE}/imagem/get-all-imagem",
             headers=headers,
             params={"produto": codigo},
-            timeout=10
+            timeout=8
         )
         if r.status_code == 200:
             dados = r.json()
@@ -150,7 +138,7 @@ def get_bling_deposito_id(bling_headers):
 
 
 def sincronizar():
-    print("1. Autenticando no Bling...")
+    print("1. Autenticando no Bling...", flush=True)
     bling_token = get_bling_token()
     bling_headers = {
         "Authorization": f"Bearer {bling_token}",
@@ -159,14 +147,14 @@ def sincronizar():
     }
 
     deposito_id = get_bling_deposito_id(bling_headers)
-    print("Deposito padrao Bling:", deposito_id)
+    print("Deposito padrao Bling:", deposito_id, flush=True)
 
-    print("2. Autenticando na Reval...")
+    print("2. Autenticando na Reval...", flush=True)
     reval_token = get_reval_token()
 
-    print("3. Buscando catalogo e estoque da Reval...")
+    print("3. Buscando catalogo e estoque da Reval...", flush=True)
     produtos_reval = get_reval_products(reval_token)
-    print("Total de produtos lidos da Reval:", len(produtos_reval))
+    print("Total de produtos lidos da Reval:", len(produtos_reval), flush=True)
 
     atualizados = 0
     criados = 0
@@ -218,17 +206,7 @@ def sincronizar():
                 "situacao": "A",
                 "formato": "S",
                 "unidade": "UN",
-                "descricaoCurta": desc_curta,
-                "gtin": str(item.get("codigoBarras") or "").strip(),
-                "marca": str(item.get("marca") or "").strip(),
-                "pesoLiquido": parse_preco(item.get("peso")),
-                "pesoBruto": parse_preco(item.get("peso")),
-                "dimensoes": {
-                    "largura": parse_preco(item.get("largura")),
-                    "altura": parse_preco(item.get("altura")),
-                    "profundidade": parse_preco(item.get("comprimento")),
-                    "unidadeMedida": 1
-                }
+                "descricaoCurta": desc_curta
             }
             if imagens:
                 payload_novo["midia"] = {"imagens": {"externas": imagens}}
@@ -238,6 +216,7 @@ def sincronizar():
             if r_cria.status_code in (200, 201):
                 criados += 1
                 prod_id = r_cria.json().get("data", {}).get("id")
+                print(f"Criado ({criados}): {sku} - {nome[:30]}", flush=True)
                 if prod_id and deposito_id:
                     payload_est = {
                         "produto": {"id": prod_id},
@@ -248,11 +227,13 @@ def sincronizar():
                     }
                     requests.post(f"{BLING_BASE}/estoques", headers=bling_headers, json=payload_est)
                     time.sleep(0.35)
+            else:
+                print(f"Aviso Bling ao criar {sku}: {r_cria.status_code} {r_cria.text[:250]}", flush=True)
 
-            if criados >= 100:
+            if criados >= 50:
                 break
 
-    print(f"Concluido! Produtos novos criados: {criados} | Estoques atualizados: {atualizados}")
+    print(f"Concluido! Novos: {criados} | Atualizados: {atualizados}", flush=True)
 
 
 if __name__ == "__main__":
