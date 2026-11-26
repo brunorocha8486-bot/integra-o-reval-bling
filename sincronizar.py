@@ -6,7 +6,7 @@ import requests
 
 REVAL_BASE = "https://" + "api.reval.net/api"
 BLING_BASE = "https://" + "api.bling.com.br/Api/v3"
-IMG_HOST_URL = "https://" + "catbox.moe/user/api.php"
+IMG_HOST_URL = "https://" + "tmpfiles.org/api/v1/upload"
 
 REVAL_USER = os.environ.get("REVAL_USER")
 REVAL_PASS = os.environ.get("REVAL_PASS")
@@ -122,13 +122,15 @@ def gerar_links_fotos_reval(reval_token, sku):
                 img_bytes = base64.b64decode(b64_data)
                 r_up = requests.post(
                     IMG_HOST_URL,
-                    data={"reqtype": "fileupload"},
-                    files={"fileToUpload": (f"{sku}_{idx+1}.jpg", img_bytes, "image/jpeg")},
+                    files={"file": (f"{sku}_{idx+1}.jpg", img_bytes, "image/jpeg")},
                     timeout=15
                 )
-                link_publico = r_up.text.strip()
-                if r_up.status_code == 200 and link_publico.startswith("http"):
-                    externas.append({"link": link_publico})
+                if r_up.status_code == 200:
+                    url_raw = r_up.json().get("data", {}).get("url", "")
+                    if url_raw.startswith("http"):
+                        link_direto = url_raw.replace("tmpfiles.org/", "tmpfiles.org/dl/")
+                        externas.append({"link": link_direto})
+
     except Exception as e:
         print("Erro upload foto:", sku, str(e)[:100], flush=True)
     return externas
