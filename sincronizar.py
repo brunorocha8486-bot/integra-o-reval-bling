@@ -121,16 +121,15 @@ def gerar_links_fotos_reval(reval_token, sku):
                 b64_data = img.get("arquivo")
                 if not b64_data:
                     continue
-                    r_up = requests.post(
+                r_up = requests.post(
                     IMG_HOST_URL,
                     data={"key": IMGBB_KEY, "image": b64_data, "name": f"{sku}_{idx+1}"},
                     timeout=15
                 )
-                if r_up.status_code == 200:
-                    link_direto = r_up.json().get("data", {}).get("url", "")
-                    if link_direto.startswith("http"):
-                        externas.append({"link": link_direto})
-
+                  if r_up.status_code == 200:
+                 link_direto = r_up.json().get("data", {}).get("url", "")
+                 if link_direto.startswith("http"):
+                     externas.append({"link": link_direto})
 
     except Exception as e:
         print("Erro upload foto:", sku, str(e)[:100], flush=True)
