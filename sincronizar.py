@@ -266,3 +266,4 @@ def sincronizar():
                 print(f"Aviso Bling ao criar {sku}: {r_cria.status_code} {r_cria.text[:250]}", flush=True)
 
             if criados >= 30:
+                break
