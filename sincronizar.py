@@ -267,8 +267,6 @@ def sincronizar():
 
             if criados >= 30:
                 break
- print(f"Concluido! Novos: {criados} | Atualizados: {atualizados}", flush=True)
-
 
 if __name__ == "__main__":
     sincronizar()
