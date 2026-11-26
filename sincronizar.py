@@ -83,7 +83,7 @@ def get_reval_token():
 def get_reval_products(reval_token):
     headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
-    for pagina in (1, 2, 3, 4, 5):
+    for pagina in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
         r = requests.get(
             f"{REVAL_BASE}/produto/get-page-tabela",
             headers=headers,
@@ -99,30 +99,42 @@ def get_reval_products(reval_token):
     return produtos
 
 
-def get_reval_imagens(reval_token, codigo):
-    headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
+def anexar_fotos_bling(reval_token, bling_token, sku):
+    headers_rev = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
+    internas = []
     try:
         r = requests.get(
             f"{REVAL_BASE}/imagem/get-all-imagem",
-            headers=headers,
-            params={"produto": codigo},
-            timeout=8
+            headers=headers_rev,
+            params={"produto": sku},
+            timeout=10
         )
         if r.status_code == 200:
             dados = r.json()
             lista = dados if isinstance(dados, list) else (dados.get("models") or dados.get("data") or [])
-            urls = []
-            for img in lista:
-                if isinstance(img, str) and img.startswith("http"):
-                    urls.append({"link": img})
-                elif isinstance(img, dict):
-                    link = img.get("url") or img.get("link") or img.get("caminho") or img.get("imagem")
-                    if link and str(link).startswith("http"):
-                        urls.append({"link": link})
-            return urls
-    except Exception:
-        pass
-    return []
+            for img in lista[:6]:
+                if not isinstance(img, dict):
+                    continue
+                b64_data = img.get("arquivo")
+                nome_arq = img.get("nome") or f"{sku}.jpg"
+                if not b64_data:
+                    continue
+                img_bytes = base64.b64decode(b64_data)
+                r_up = requests.post(
+                    f"{BLING_BASE}/midias",
+                    headers={"Authorization": f"Bearer {bling_token}", "Accept": "application/json"},
+                    files={"file": (nome_arq, img_bytes, "image/jpeg")}
+                )
+                time.sleep(0.35)
+                if r_up.status_code in (200, 201):
+                    midia_id = r_up.json().get("data", {}).get("id")
+                    if midia_id:
+                        internas.append({"id": midia_id})
+                else:
+                    print("Aviso upload foto:", sku, r_up.status_code, r_up.text[:150], flush=True)
+    except Exception as e:
+        print("Erro foto:", sku, str(e)[:100], flush=True)
+    return internas
 
 
 def get_bling_deposito_id(bling_headers):
@@ -156,9 +168,6 @@ def sincronizar():
     produtos_reval = get_reval_products(reval_token)
     print("Total de produtos lidos da Reval:", len(produtos_reval), flush=True)
 
-    for idx, amostra in enumerate(produtos_reval[:3]):
-        print(f"Amostra {idx+1}: cod={amostra.get('codigo')} | est={amostra.get('estoque')} | preco={amostra.get('preco')}", flush=True)
-
     atualizados = 0
     criados = 0
 
@@ -176,9 +185,6 @@ def sincronizar():
         preco_custo = parse_preco(item.get("preco") or item.get("precoTabela") or item.get("valor"))
         preco_venda = round(preco_custo * MARGEM_VENDA, 2) if preco_custo > 0 else 10.0
 
-        if not disponivel:
-            continue
-
         r_busca = requests.get(
             f"{BLING_BASE}/produtos",
             headers=bling_headers,
@@ -188,7 +194,8 @@ def sincronizar():
 
         lista_bling = r_busca.json().get("data") if r_busca.status_code == 200 else []
         if lista_bling:
-            prod_id = next(iter(lista_bling)).get("id")
+            prod_existente = next(iter(lista_bling))
+            prod_id = prod_existente.get("id")
             if prod_id and deposito_id:
                 payload_est = {
                     "produto": {"id": prod_id},
@@ -200,8 +207,22 @@ def sincronizar():
                 requests.post(f"{BLING_BASE}/estoques", headers=bling_headers, json=payload_est)
                 time.sleep(0.35)
                 atualizados += 1
+
+            if prod_id and not prod_existente.get("imagemURL") and disponivel:
+                internas = anexar_fotos_bling(reval_token, bling_token, sku)
+                if internas:
+                    requests.patch(
+                        f"{BLING_BASE}/produtos/{prod_id}",
+                        headers=bling_headers,
+                        json={"midia": {"imagens": {"internas": internas}}}
+                    )
+                    time.sleep(0.35)
+                    print(f"Foto anexada no item existente: {sku}", flush=True)
         else:
-            imagens = get_reval_imagens(reval_token, sku)
+            if not disponivel:
+                continue
+
+            internas = anexar_fotos_bling(reval_token, bling_token, sku)
             payload_novo = {
                 "nome": nome,
                 "codigo": sku,
@@ -210,10 +231,20 @@ def sincronizar():
                 "situacao": "A",
                 "formato": "S",
                 "unidade": "UN",
-                "descricaoCurta": desc_curta
+                "descricaoCurta": desc_curta,
+                "gtin": str(item.get("codigoBarras") or "").strip(),
+                "marca": str(item.get("marca") or "").strip(),
+                "pesoLiquido": parse_preco(item.get("peso")),
+                "pesoBruto": parse_preco(item.get("peso")),
+                "dimensoes": {
+                    "largura": parse_preco(item.get("largura")),
+                    "altura": parse_preco(item.get("altura")),
+                    "profundidade": parse_preco(item.get("comprimento")),
+                    "unidadeMedida": 1
+                }
             }
-            if imagens:
-                payload_novo["midia"] = {"imagens": {"externas": imagens}}
+            if internas:
+                payload_novo["midia"] = {"imagens": {"internas": internas}}
 
             r_cria = requests.post(f"{BLING_BASE}/produtos", headers=bling_headers, json=payload_novo)
             time.sleep(0.4)
@@ -235,10 +266,3 @@ def sincronizar():
                 print(f"Aviso Bling ao criar {sku}: {r_cria.status_code} {r_cria.text[:250]}", flush=True)
 
             if criados >= 30:
-                break
-
-    print(f"Concluido! Novos: {criados} | Atualizados: {atualizados}", flush=True)
-
-
-if __name__ == "__main__":
-    sincronizar()
