@@ -6,8 +6,8 @@ import requests
 
 REVAL_BASE = "https://" + "api.reval.net/api"
 BLING_BASE = "https://" + "api.bling.com.br/Api/v3"
-IMG_HOST_URL = "https://" + "api.imgbb.com"
-IMGBB_KEY = "dfe01a854e6364a85a2449f4e897c0e6"
+IMG_HOST_URL = "https://" + "api.imgbb.com/1/upload"
+IMGBB_KEY = "dfe01a854e6364a85a2449f4e897cbe6"
 
 REVAL_USER = os.environ.get("REVAL_USER")
 REVAL_PASS = os.environ.get("REVAL_PASS")
@@ -109,11 +109,17 @@ def gerar_links_fotos_reval(reval_token, sku):
             f"{REVAL_BASE}/imagem/get-all-imagem",
             headers=headers_rev,
             params={"produto": sku},
-            timeout=10
+            timeout=15
         )
-        if r.status_code == 200:
+        if r.status_code == 200 and r.text.strip():
             dados = r.json()
-            lista = dados if isinstance(dados, list) else (dados.get("models") or dados.get("data") or [])
+            if isinstance(dados, dict) and dados.get("arquivo"):
+                lista = [dados]
+            elif isinstance(dados, list):
+                lista = dados
+            else:
+                lista = dados.get("models") or dados.get("data") or []
+
             for idx, img in enumerate(lista[:6]):
                 if not isinstance(img, dict):
                     continue
@@ -122,15 +128,16 @@ def gerar_links_fotos_reval(reval_token, sku):
                     continue
                 r_up = requests.post(
                     IMG_HOST_URL,
-                    data={"key": IMGBB_KEY, "image": b64_data, "name": f"{sku}_{idx+1}"},
-                    timeout=15
+                    data={"key": IMGBB_KEY},
+                    files={"image": (f"{sku}_{idx+1}.jpg", base64.b64decode(b64_data), "image/jpeg")},
+                    timeout=20
                 )
-                if r_up.status_code == 200:
+                if r_up.status_code == 200 and r_up.text.strip():
                     link_direto = r_up.json().get("data", {}).get("url", "")
                     if link_direto.startswith("http"):
                         externas.append({"link": link_direto})
     except Exception as e:
-        print("Erro upload foto:", sku, str(e)[:100], flush=True)
+        print("Erro upload foto:", sku, str(e)[:120], flush=True)
     return externas
 
 
