@@ -85,7 +85,7 @@ def get_reval_token():
 def get_reval_products(reval_token):
     headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
-    for pagina in range(1, 16):
+    for pagina in range(1, 60):
         try:
             r = requests.get(
                 f"{REVAL_BASE}/produto/get-page-tabela",
@@ -191,7 +191,9 @@ def sincronizar():
 
         nome = str(item.get("descricao") or item.get("nome") or f"Produto {sku}").strip()[:120]
         desc_curta = str(item.get("dadosAdicionais") or nome).strip()
-        preco_custo = parse_preco(item.get("preco") or item.get("precoTabela") or item.get("valor"))
+        preco_custo = parse_preco(item.get("preco") or item.get("precoTabela") or item.get("precoVenda")or item.get("prrecoUnitario") or item.get("valor"))
+        if preco_custo <= 0:
+            continue
         embalagem = 1.50
         seguranca_cpf = 3.00
         margem_liquida = 0.15
