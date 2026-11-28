@@ -85,7 +85,7 @@ def get_reval_token():
 def get_reval_products(reval_token):
     headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
-    for pagina in range(1, 215):
+    for pagina in range(1, 16):
         try:
             r = requests.get(
                 f"{REVAL_BASE}/produto/get-page-tabela",
