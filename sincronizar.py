@@ -242,7 +242,7 @@ def sincronizar():
             }
             if externas:
                 payload_novo["midia"] = {"imagens": {"externas": externas}}
-                  print(f"Links fotos {sku}: {externas}", flush=True)
+                print(f"Links fotos {sku}: {externas}", flush=True)
 
 
             r_cria = requests.post(f"{BLING_BASE}/produtos", headers=bling_headers, json=payload_novo)
