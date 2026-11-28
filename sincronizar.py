@@ -85,7 +85,7 @@ def get_reval_token():
 def get_reval_products(reval_token):
     headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
-     pagina_inicial = 1
+    pagina_inicial = 1
     if os.path.exists("ultima_pagina.txt"):
         try:
             with open("ultima_pagina.txt", "r") as f:
