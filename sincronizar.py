@@ -102,7 +102,7 @@ def get_reval_products(reval_token):
                 break
             produtos.extend(lista)
             time.sleep(0.3)
-          except Exception:
+        except Exception:
          time.sleep(2)
          continue
  return produtos
