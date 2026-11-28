@@ -85,7 +85,20 @@ def get_reval_token():
 def get_reval_products(reval_token):
     headers = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     produtos = []
-    for pagina in range(1, 25):
+     pagina_inicial = 1
+    if os.path.exists("ultima_pagina.txt"):
+        try:
+            with open("ultima_pagina.txt", "r") as f:
+                pagina_inicial = int(f.read().strip())
+        except Exception:
+            pagina_inicial = 1
+    if pagina_inicial > 220:
+        pagina_inicial = 1
+    with open("ultima_pagina.txt", "w") as f:
+        f.write(str(pagina_inicial + 20))
+
+    for pagina in range(pagina_inicial, pagina_inicial + 20):
+
         try:
             r = requests.get(
                 f"{REVAL_BASE}/produto/get-page-tabela",
