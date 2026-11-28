@@ -186,7 +186,7 @@ def sincronizar():
             continue
 
         est_raw = str(item.get("estoque") or "").strip().upper()
-        disponivel = est_raw in ("S", "SIM", "TRUE", "1", "DISPONIVEL", "DISPONIVEL") or (est_raw.isdigit() and int(est_raw) > 0)
+        disponivel = est_raw in ("S", "SIM", "TRUE", "1", "DISPONIVEL", "DISPONIVEL") or (est_raw.isdigit() and int(est_raw) > 10)
         estoque_seguro = SALDO_DISPONIVEL if disponivel else 0
 
         nome = str(item.get("descricao") or item.get("nome") or f"Produto {sku}").strip()[:120]
