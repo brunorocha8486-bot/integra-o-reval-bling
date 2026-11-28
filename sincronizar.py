@@ -145,7 +145,7 @@ def gerar_links_fotos_reval(reval_token, sku):
                     link_direto = r_up.json().get("data", {}).get("url", "")
                     if link_direto.startswith("http"):
                         
-                externas.append({"link": link_direto, "nome": f"{sku}_{idx+1}.jpg"})
+                    externas.append({"link": link_direto, "nome": f"{sku}_{idx+1}.jpg"})
     except Exception as e:
         print("Erro upload foto:", sku, str(e)[:120], flush=True)
     return externas
