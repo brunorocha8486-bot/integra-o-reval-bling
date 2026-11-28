@@ -257,7 +257,7 @@ def sincronizar():
                 print(f"Criado ({criados}): {sku} - {nome[:30]}", flush=True)
                 if prod_id and externas:
                  r_img= requests.post(f"{BLING_BASE}/produtos/{prod_id}/imagens", headers=bling_headers, json={"imagens": [{"url": x["link"]} for x in externas]})
-                    print("Resp img:", r_img.status_code, r_iimg.text[:200], flush=true)
+                 print("Resp img:", r_img.status_code, r_iimg.text[:200], flush=true)
                  time.sleep(0.35)
 
                 if prod_id and deposito_id:
