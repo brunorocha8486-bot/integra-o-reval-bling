@@ -105,7 +105,7 @@ def get_reval_products(reval_token):
         except Exception:
          time.sleep(2)
          continue
- return produtos
+  return produtos
 
         def gerar_links_fotos_reval(reval_token, sku):
     headers_rev = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
