@@ -192,7 +192,19 @@ def sincronizar():
         nome = str(item.get("descricao") or item.get("nome") or f"Produto {sku}").strip()[:120]
         desc_curta = str(item.get("dadosAdicionais") or nome).strip()
         preco_custo = parse_preco(item.get("preco") or item.get("precoTabela") or item.get("valor"))
-        preco_venda = round(preco_custo * MARGEM_VENDA, 2) if preco_custo > 0 else 10.0
+        embalagem = 1.50
+        seguranca_cpf = 3.00
+        margem_liquida = 0.15
+
+        preco_venda = (preco_custo + 4.50 + seguranca_cpf + embalagem) / (1.0 - 0.20 - margem_liquida) if preco_custo > 0 else 10.0
+        if preco_venda >= 80.0:
+            preco_venda = (preco_custo + 16.00 + seguranca_cpf + embalagem) / (1.0 - 0.14 - margem_liquida)
+        if preco_venda >= 100.0:
+            preco_venda = (preco_custo + 20.00 + seguranca_cpf + embalagem) / (1.0 - 0.14 - margem_liquida)
+        if preco_venda >= 200.0:
+            preco_venda = (preco_custo + 26.00 + seguranca_cpf + embalagem) / (1.0 - 0.14 - margem_liquida)
+        preco_venda = round(preco_venda, 2)
+
 
         r_busca = requests.get(
             f"{BLING_BASE}/produtos",
