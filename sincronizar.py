@@ -253,7 +253,7 @@ def sincronizar():
 
                 criados += 1
                 if prod_id and externas:
-                 requests.put(f"{BLING_BASE}/produtos/{prod_id}", headers=bling_headers, json={"midia": {"imagens": {"externas": externas}}})
+                 requests.put(f"{BLING_BASE}/produtos/{prod_id}", headers=bling_headers, json=payload_novo)
                  time.sleep(0.35)
                 print(f"Criado ({criados}): {sku} - {nome[:30]}", flush=True)
                 
