@@ -106,7 +106,7 @@ def get_reval_products(reval_token):
          time.sleep(2)
          continue
     return produtos
-        def gerar_links_fotos_reval(reval_token, sku):
+def gerar_links_fotos_reval(reval_token, sku):
     headers_rev = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     externas = []
     try:
