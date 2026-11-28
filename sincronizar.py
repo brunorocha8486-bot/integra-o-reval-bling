@@ -102,15 +102,7 @@ def get_reval_products(reval_token):
                 break
             produtos.extend(lista)
             time.sleep(0.3)
-        except Exception:
-            time.sleep(2)
-            continue
-    return produtos
-
-
-
-
-def gerar_links_fotos_reval(reval_token, sku):
+        def gerar_links_fotos_reval(reval_token, sku):
     headers_rev = {"Authorization": f"Bearer {reval_token}", "Accept": "application/json"}
     externas = []
     try:
@@ -136,19 +128,18 @@ def gerar_links_fotos_reval(reval_token, sku):
                 if not b64_data:
                     continue
                 r_up = requests.post(
-                    IMG_HOST_URL,
-                    data={"key": IMGBB_KEY},
-                    files={"image": (f"{sku}_{idx+1}.jpg", base64.b64decode(b64_data), "image/jpeg")},
+                    "https://" + "://imgbb.com",
+                    data={"key": "dfe01a854e6364a85a2449f4e897cbe6", "image": b64_data},
                     timeout=20
                 )
                 if r_up.status_code == 200 and r_up.text.strip():
                     link_direto = r_up.json().get("data", {}).get("url", "")
                     if link_direto.startswith("http"):
-                        
-                        externas.append({"link": link_direto, "nome": f"{sku}_{idx+1}.jpg"})
+                        externas.append({"link": link_direto})
     except Exception as e:
-        print("Erro upload foto:", sku, str(e)[:120], flush=True)
+        print("Erro foto:", sku, str(e)[:120], flush=True)
     return externas
+
 
 
 def get_bling_deposito_id(bling_headers):
