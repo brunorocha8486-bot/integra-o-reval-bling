@@ -242,7 +242,7 @@ def sincronizar():
                 }
             }
             if externas:
-                payload_novo["midia"] = {"imagens": {"externas": externas}}
+                payload_novo["midia"] = {"imagens": {"imagensURL": externas}}
                 print(f"Links fotos {sku}: {externas}", flush=True)
 
 
