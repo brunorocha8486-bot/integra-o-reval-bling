@@ -137,7 +137,7 @@ def gerar_links_fotos_reval(reval_token, sku):
                 )
                 if r_up.status_code == 200 and r_up.text.strip():
                     link_direto = r_up.json().get("data", {}).get("url", "")
-                 link_direto = "https://" + link_direto.split("://")[-1] if "://" in link_direto else link_direto
+                    link_direto = "https://" + link_direto.split("://")[-1] if "://" in link_direto else link_direto
                     if link_direto.startswith("http"):
                         externas.append({"link": link_direto})
     except Exception as e:
