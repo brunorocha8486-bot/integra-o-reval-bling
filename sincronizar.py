@@ -251,7 +251,7 @@ def sincronizar():
                 prod_id = r_cria.json().get("data", {}).get("id")
 
                 criados += 1
-                 if prod_id and externas:
+                if prod_id and externas:
                  requests.put(f"{BLING_BASE}/produtos/{prod_id}", headers=bling_headers, json={"midia": {"imagens": {"externas": externas}}})
                  time.sleep(0.35)
                 print(f"Criado ({criados}): {sku} - {nome[:30]}", flush=True)
