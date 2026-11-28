@@ -242,12 +242,18 @@ def sincronizar():
             }
             if externas:
                 payload_novo["midia"] = {"imagens": {"externas": externas}}
+                  print(f"Links fotos {sku}: {externas}", flush=True)
+
 
             r_cria = requests.post(f"{BLING_BASE}/produtos", headers=bling_headers, json=payload_novo)
             time.sleep(0.4)
             if r_cria.status_code in (200, 201):
-                criados += 1
                 prod_id = r_cria.json().get("data", {}).get("id")
+
+                criados += 1
+                 if prod_id and externas:
+                 requests.put(f"{BLING_BASE}/produtos/{prod_id}", headers=bling_headers, json={"midia": {"imagens": {"externas": externas}}})
+                 time.sleep(0.35)
                 print(f"Criado ({criados}): {sku} - {nome[:30]}", flush=True)
                 
 
