@@ -2,7 +2,7 @@ name: Sincronizar Reval com Bling
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '0 */2 * * *'
   workflow_dispatch:
 
 permissions:
